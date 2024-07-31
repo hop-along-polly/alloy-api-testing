@@ -1,0 +1,66 @@
+meta {
+  name: Bv1 - Create Entity
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{protocol}}://{{host}}/v1/events
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+body:json {
+  {
+    "event_type": "person_created",
+    "data": {
+      "external_entity_id": "{{bv1_person_entity_id}}",
+      "gender": "male",
+      "birth_date": "1991-02-10T00:00:00.000Z",
+      "name_first": "Bv1",
+      "name_last": "Test",
+      "document_ssn": "123121234",
+      "emails": [{
+      "email_address": "bv1.test@alliofinance.com"
+      }],
+      "phones": [{
+        "phone_number": "(719) 867-5309"
+      }],
+      "timestamp": "{{ts}}"
+    }
+  }
+  
+}
+
+script:pre-request {
+  const moment = require('moment');
+  
+  bru.setEnvVar(
+    'bv1_person_entity_id',
+    require('uuid').v4()
+  );
+  
+  bru.setEnvVar('ts', moment().toISOString())
+  
+}
+
+script:post-response {
+  const { entity_token } = res.body.event.data;
+  bru.setEnvVar('bv1_entity_token', entity_token);
+  
+}
+
+tests {
+  test('should return an entity_token', () => {
+    const { event } = res.body;
+    
+    expect(event.event_status).to.equal('PROCESSED');
+    const { entity_token } = event.data;
+    expect(entity_token).match(/P-.*/);
+  });
+  
+}

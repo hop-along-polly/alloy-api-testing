@@ -1,0 +1,51 @@
+meta {
+  name: FV5 - Auth
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{protocol}}://{{host}}/v1/oauth/bearer
+  body: json
+  auth: bearer
+}
+
+headers {
+  Content-Type: application/json
+}
+
+auth:bearer {
+  token: {{auth_token}}
+}
+
+body:json {
+  {
+    "grant_type": "client_credentials"
+  }
+}
+
+script:pre-request {
+  const btoa = require('btoa');
+  // Fetch workflow token and secret from Env Vars so they can be encoded into the token needed for fetching the OAuth token.
+  const token = bru.getEnvVar('workflow_token');
+  const secret = bru.getEnvVar('workflow_secret');
+  const encoded_token = btoa(`${token}:${secret}`);
+  
+  bru.setEnvVar('auth_token', encoded_token);
+  
+}
+
+script:post-response {
+  const { access_token } = res.body;
+  
+  bru.setEnvVar('access_token', access_token);
+  
+}
+
+tests {
+  test('Should return an access_token', () => {
+    const { access_token } = res.body;
+    expect(access_token).not.to.be.undefined;
+  });
+  
+}

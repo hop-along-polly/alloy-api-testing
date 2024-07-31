@@ -1,0 +1,63 @@
+meta {
+  name: FV3 - Return R03
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{protocol}}://{{host}}/v1/events
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+body:json {
+  {
+    "event_type": "transaction",
+    "data": {
+      "external_entity_id": "{{fv3_person_entity_id}}",
+      "external_transaction_id": "{{fv3_tx_id}}",
+      "external_account_id": "{{fv3_acct_id}}",
+      "category": "Return",
+      "amount": 20000000,
+      "status": "Completed",
+      "process_method": "ACH",
+      "return_code": "R03",
+      "currency": "USD",
+      "supplemental_data": {
+        "birth_date": "1991-02-10T00:00:00.000Z"
+      },
+      "counterparty": {
+        "external_counter_party_id": "{{fv3_person_entity_id}}",
+        "account_number": "012345"
+      },
+      "timestamp": "{{ts}}"
+    }
+  }
+}
+
+script:pre-request {
+  const moment = require('moment');
+  
+  bru.setEnvVar('fv3_tx_id', require('uuid').v4());
+  
+  bru.setEnvVar('ts', moment().toISOString());
+  
+}
+
+tests {
+  test('Should Approve the transaction', () => {
+    const { event } = res.body;
+    
+    expect(event.event_status).to.equal('PROCESSED')
+    
+    const { evaluations } = event;
+    expect(evaluations[0].summary.outcome).to.equal(
+      'Approved'
+    );
+  });
+  
+}

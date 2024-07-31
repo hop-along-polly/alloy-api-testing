@@ -1,0 +1,87 @@
+meta {
+  name: FF5 - Rejected Withdrawals
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{protocol}}://{{host}}/v1/events
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+body:json {
+  {
+    "event_type": "transaction",
+    "data": {
+      "external_entity_id": "{{ff5_person_entity_id}}",
+      "external_transaction_id": "{{ff5_tx_id}}",
+      "external_account_id": "{{ff5_acct_id}}",
+      "category": "Withdrawal",
+      "amount": -1000000,
+      "status": "Rejected",
+      "process_method": "ACH",
+      "currency": "USD",
+      "supplemental_data": {
+        "birth_date": "1991-02-10T00:00:00.000Z"
+      },
+      "counterparty": {
+        "external_counter_party_id": "{{ff5_person_entity_id}}",
+        "account_number": "012345"
+      },
+      "timestamp": "{{yesterday}}"
+    }
+  }
+}
+
+script:pre-request {
+  const moment = require('moment');
+  
+  // Counter to track how many transactions are
+  // created w/ this request.
+  let iters = parseInt(bru.getEnvVar('ff5_iter')) || 0;
+  if (!iters || iters >= 10) {
+   iters = 0
+  }
+  bru.setEnvVar('ff5_iter', ++iters);
+  
+  bru.setEnvVar(
+    'ff5_tx_id',
+    require('uuid').v4() + `+tx-${iters}`
+  );
+  
+  bru.setEnvVar(
+    'yesterday',
+    moment().subtract(1, 'day').toISOString()
+  );
+}
+
+script:post-response {
+  let iters = parseInt(bru.getEnvVar('ff5_iter'));
+  if (iters < 10) {
+    bru.setNextRequest(
+      'FF5 - Rejected Withdrawals'
+    );
+  } else {
+    bru.setNextRequest(null);
+  }
+  
+}
+
+tests {
+  test('Should Approve the transaction', () => {
+    const { event } = res.body;
+    
+    expect(event.event_status).to.equal('PROCESSED')
+    
+    const { evaluations } = event;
+    expect(evaluations[0].summary.outcome).to.equal(
+      'Approved'
+    );
+  });
+  
+}

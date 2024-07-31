@@ -1,0 +1,85 @@
+meta {
+  name: BF2 - Withdraw Transactions
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{protocol}}://{{host}}/v1/events
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+body:json {
+  {
+    "event_type": "transaction",
+    "data": {
+      "external_entity_id": "{{bf2_person_entity_id}}",
+      "external_transaction_id": "{{bf2_wd_tx_id}}",
+      "external_account_id": "{{bf2_acct_id}}",
+      "category": "Withdraw",
+      "amount": 5000000,
+      "status": "Completed",    
+      "process_method": "ACH",
+      "currency": "USD",
+  
+      "supplemental_data": {
+        "birth_date": "1991-02-10T00:00:00.000Z"
+      },
+      "counterparty": {
+        "external_counter_party_id": "{{bf2_person_entity_id}}",
+        "account_number": "012345"
+      },
+      "timestamp": "{{ts}}"
+    }
+  }
+}
+
+script:pre-request {
+  const moment = require('moment');
+  
+  // Counter to track how many transactions are
+  // created w/ this request.
+  let iters = parseInt(bru.getEnvVar('bf2_wd_iter')) || 0;
+  if (!iters || iters >= 4) {
+   iters = 0
+  }
+  bru.setEnvVar('bf2_wd_iter', ++iters);
+  
+  bru.setEnvVar(
+    'bf2_wd_tx_id',
+    require('uuid').v4() + `+tx-${iters}`
+  );
+  
+  bru.setEnvVar('ts', moment().toISOString());
+}
+
+script:post-response {
+  let iters = parseInt(bru.getEnvVar('bf2_wd_iter'));
+  if (iters < 4) {
+    bru.setNextRequest(
+      'BF2 - Withdraw Transactions'
+    );
+  } else {
+    bru.setNextRequest(null); // Ends the loop
+  }
+  
+}
+
+tests {
+  test('Should Approve the transaction', () => {
+    const { event } = res.body;
+    
+    expect(event.event_status).to.equal('PROCESSED')
+    
+    const { evaluations } = event;
+    expect(evaluations[0].summary.outcome).to.equal(
+      'Approved'
+    );
+  });
+  
+}

@@ -1,0 +1,84 @@
+meta {
+  name: BF3 - Deposit Transactions
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{protocol}}://{{host}}/v1/events
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+body:json {
+  {
+    "event_type": "transaction",
+    "data": {
+      "external_entity_id": "{{bf3_person_entity_id}}",
+      "external_transaction_id": "{{bf3_tx_id}}",
+      "external_account_id": "{{bf3_acct_id}}",
+      "category": "Deposit",
+      "amount": 10000000,
+      "status": "Completed",
+      "process_method": "ACH",
+      "currency": "USD",
+      "supplemental_data": {
+        "birth_date": "1991-02-10T00:00:00.000Z"
+      },
+      "counterparty": {
+        "external_counter_party_id": "{{bf3_person_entity_id}}",
+        "account_number": "012345"
+      },
+      "timestamp": "{{ts}}"
+    }
+  }
+}
+
+script:pre-request {
+  const moment = require('moment');
+  
+  // Counter to track how many transactions are
+  // created w/ this request.
+  let iters = parseInt(bru.getEnvVar('bf3_iter')) || 0;
+  if (!iters || iters >= 3) {
+   iters = 0
+  }
+  bru.setEnvVar('bf3_iter', ++iters);
+  
+  bru.setEnvVar(
+    'bf3_tx_id',
+    require('uuid').v4() + `+tx-${iters}`
+  );
+  
+  bru.setEnvVar('ts', moment().toISOString());
+}
+
+script:post-response {
+  let iters = parseInt(bru.getEnvVar('bf3_iter'));
+  if (iters < 3) {
+    bru.setNextRequest(
+      'BF3 - Deposit Transactions'
+    );
+  } else {
+    bru.setNextRequest(null);
+  }
+  
+}
+
+tests {
+  test('Should Approve the transaction', () => {
+    const { event } = res.body;
+    
+    expect(event.event_status).to.equal('PROCESSED')
+    
+    const { evaluations } = event;
+    expect(evaluations[0].summary.outcome).to.equal(
+      'Approved'
+    );
+  });
+  
+}

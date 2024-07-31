@@ -1,0 +1,65 @@
+meta {
+  name: AO1 - Withdrawal Transaction
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{protocol}}://{{host}}/v1/events
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+body:json {
+  {
+    "event_type": "transaction",
+    "data": {
+      "external_entity_id": "{{ao1_person_entity_id}}",
+      "external_transaction_id": "{{ao1_tx_id}}",
+      "amount": -20000000,
+      "currency": "USD",
+      "external_account_id": "{{ao1_acct_id}}",
+      "process_method": "ACH",
+      "category": "Withdrawal",
+      "is_triggered_by_user": true,
+      "status": "Completed",
+      "supplemental_data": {
+        "birth_date": "1991-02-10T00:00:00.000Z"
+      },
+      "counterparty": {
+        "external_counter_party_id": "{{ao1_person_entity_id}}",
+        "routing_number": "123456789",
+        "account_number": "012345",
+        "currency": "USD"
+      },
+      "timestamp": "{{ts}}"
+    }
+  }
+}
+
+script:pre-request {
+  const moment = require('moment');
+  
+  bru.setEnvVar('ao1_tx_id', require('uuid').v4());
+  
+  bru.setEnvVar('ts', moment().toISOString());
+  
+}
+
+tests {
+  test('Should Approve the transaction', () => {
+    const { event } = res.body;
+    
+    expect(event.event_status).to.equal('PROCESSED')
+    
+    const { evaluations } = event;
+    expect(evaluations[0].summary.outcome).to.equal(
+      'Approved'
+    );
+  });
+  
+}

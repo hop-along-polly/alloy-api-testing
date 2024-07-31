@@ -1,0 +1,66 @@
+meta {
+  name: FF2 - Attach Bank Account
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{protocol}}://{{host}}/v1/events
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{access_token}}
+}
+
+body:json {
+  {
+    "event_type": "external_account_created",
+    "data": {
+      "external_account_id": "{{ff2_acct_id}}",
+      "account_name": "Ext - Test Checking",
+      "account_number": "98765",
+      "routing_number": "0987654321",
+      "opening_date": "{{ff2_open_date}}",
+      "cif_number": "1111122222",
+      "country_code": "US",
+      "currency": "USD",
+      "account_balance": 10000,
+      "entities": [{
+        "account_holder_type": "primary",
+        "external_entity_id": "{{ff2_person_entity_id}}"
+      }],
+      "timestamp": "{{ts}}"
+    }
+  }
+  
+}
+
+script:pre-request {
+  const moment = require('moment');
+  const uuid = require('uuid');
+  
+  // Set the current timestamp for the request
+  bru.setEnvVar('ts', moment().toISOString());
+  bru.setEnvVar('ff2_open_date', moment().toISOString());
+  bru.setEnvVar('ff2_acct_id', uuid.v4());
+  
+}
+
+script:post-response {
+  const { account_token } = res.body.event.data;
+  bru.setEnvVar('ff2_acct_token', account_token)
+  
+}
+
+tests {
+  test('Should return an account_token', () => {
+    const { event } = res.body;
+    expect(event.event_status).to.equal('PROCESSED')
+    
+    const { account_token } = event.data;
+    expect(account_token).to.match(/A-.*/);
+  });
+  
+}
